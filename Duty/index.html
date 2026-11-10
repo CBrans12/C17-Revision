@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crew Duty Planner</title>
+<meta name="theme-color" content="#0f151c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Crew Duty">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="C-17 crew duty time and crew rest planner — 2 Gp Ops Manual Part A, 7.1.8.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+ --bg:#0f151c;--panel:#18212c;--panel2:#1f2b38;--line:#2b3947;--line2:#3a4f63;
+ --ink:#e9eff5;--ink2:#c4d2df;--muted:#8ca0b4;
+ --ok:#4bdd97;--amber:#ffb545;--red:#ff6b5c;--accent:#5fc9f3;--night:#7e8fff;
+ --sans:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+ --cond:'Avenir Next Condensed','Roboto Condensed','Arial Narrow',system-ui,sans-serif;
+ --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:0 15px 80px}
+
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:18px 0 15px;margin-bottom:18px}
+h1{font-family:var(--cond);font-size:25px;font-weight:700;margin:0}
+.sub{color:var(--muted);font-size:14px;margin:3px 0 0}
+.warn{background:rgba(255,181,69,.1);border:1px solid rgba(255,181,69,.4);border-left-width:3px;
+ border-radius:7px;padding:11px 13px;margin:14px 0 18px;font-size:13.5px;color:var(--amber)}
+.warn b{display:block;margin-bottom:3px;font-family:var(--mono);font-size:11.5px;letter-spacing:.04em}
+
+#mapwrap{position:relative;width:100%;aspect-ratio:900/380;border-radius:12px;overflow:hidden;
+ border:1px solid var(--line);margin-bottom:16px;background:#0b1118}
+#tiles{position:absolute;inset:0;overflow:hidden}
+#tiles img{position:absolute;width:256px;height:256px;image-rendering:auto;opacity:.78;
+ filter:saturate(.5) brightness(.82)}
+#map{position:absolute;inset:0;width:100%;height:100%;display:block}
+#mapwrap.hasimg .grid{stroke:rgba(255,255,255,.09)}
+#mapwrap.hasimg .grid.major{stroke:rgba(255,255,255,.16)}
+#mapwrap.hasimg .sub{fill:#9fb3c6}
+#maptoggle{position:absolute;right:8px;top:8px;z-index:5;background:rgba(15,21,28,.8);
+ border:1px solid var(--line2);border-radius:7px;color:var(--ink2);font-family:var(--mono);
+ font-size:10px;letter-spacing:.06em;padding:6px 9px;backdrop-filter:blur(6px)}
+#maptoggle[aria-pressed="false"]{color:var(--muted)}
+#mapnote{position:absolute;right:8px;top:38px;z-index:5;font-family:var(--mono);font-size:9.5px;
+ letter-spacing:.04em;padding:3px 7px;border-radius:5px;background:rgba(15,21,28,.8);
+ backdrop-filter:blur(6px);pointer-events:none}
+#mapnote.on{color:var(--muted)} #mapnote.off{color:var(--amber)}
+#mapattr{position:absolute;right:6px;bottom:5px;z-index:5;font-size:9px;color:#8ca0b4;
+ text-decoration:none;background:rgba(11,17,24,.72);padding:2px 6px;border-radius:4px;display:none}
+#mapwrap.hasimg #mapattr{display:block}
+#map .grid{stroke:#1c2835;stroke-width:1}
+#map .grid.major{stroke:#243443}
+#map .gcl{fill:none;stroke:#5fc9f3;stroke-width:2.1;stroke-linecap:round;opacity:.95}
+#map .gcl.halo{stroke:#0b1118;stroke-width:5;opacity:.55}
+#map .lbl{paint-order:stroke;stroke:#0b1118;stroke-width:3;stroke-linejoin:round}
+#map .sub{paint-order:stroke;stroke:#0b1118;stroke-width:2.5;stroke-linejoin:round}
+#map .gcl.night{stroke:#7e8fff}
+#map .pin{fill:#5fc9f3;stroke:#0b1118;stroke-width:1.5}
+#map .pin.start{fill:#4bdd97}
+#map .lbl{fill:#c4d2df;font-family:var(--mono);font-size:11px}
+#map .sub{fill:#6b7f93;font-family:var(--mono);font-size:9px}
+
+.day{background:var(--panel);border:1px solid var(--line);border-radius:13px;margin-bottom:12px;overflow:hidden}
+.dayhead{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.dayhead h2{font-family:var(--cond);font-size:19px;margin:0;flex:1}
+.dayhead .del{color:var(--muted);font-size:13px;padding:6px 8px;margin:-6px -4px}
+.seg2{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;flex:0 0 auto}
+.seg2 button{padding:6px 10px;font-family:var(--mono);font-size:11.5px;color:var(--muted);min-height:32px}
+.seg2 button[aria-pressed="true"]{background:var(--accent);color:#0b1017;font-weight:600}
+.seg2::before{content:'RPT';align-self:center;padding:0 7px 0 8px;font-family:var(--mono);
+ font-size:9px;color:var(--muted);letter-spacing:.06em}
+.pad{padding:13px 15px}
+
+.strip{position:relative;height:40px;background:var(--panel2);border-radius:8px;overflow:hidden;margin:4px 0 7px}
+.strip .seg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;
+ font-family:var(--mono);font-size:10px;color:#0b1017;font-weight:600;overflow:hidden;white-space:nowrap}
+.strip .seg.pre{background:#3b5064;color:var(--ink2)}
+.strip .seg.fly{background:var(--accent)}
+.strip .seg.fly.night{background:var(--night)}
+.strip .seg.gnd{background:#2f4457;color:var(--ink2)}
+.strip .seg.post{background:#3b5064;color:var(--ink2)}
+.strip .lim{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--red);z-index:3}
+.strip .lim::after{content:'CDT';position:absolute;top:1px;right:4px;font-family:var(--mono);
+ font-size:9px;color:var(--red);background:var(--panel2);padding:0 2px;border-radius:2px}
+.bars{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:11px}
+
+.row{display:grid;grid-template-columns:1fr 1fr 80px 80px 30px;gap:7px;align-items:center;margin-bottom:7px}
+.row input,.row select{width:100%;background:var(--panel2);border:1px solid var(--line2);border-radius:7px;
+ padding:9px 8px;font-family:var(--mono);font-size:13.5px;min-height:40px}
+.row .x{color:var(--muted);text-align:center;font-size:16px;padding:8px 0}
+.rowhead{display:grid;grid-template-columns:1fr 1fr 80px 80px 30px;gap:7px;font-family:var(--mono);
+ font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:5px;padding:0 2px;align-items:end}
+.rowhead em{display:block;font-style:normal;font-size:9px;opacity:.75;letter-spacing:.02em}
+.leg{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--muted);
+ margin:-2px 2px 9px}
+.leg .n{color:var(--night)}
+
+.hint{color:var(--muted);font-size:13.5px;margin:0 0 11px}
+.add{border:1px dashed var(--line2);border-radius:8px;padding:10px;width:100%;color:var(--accent);
+ font-size:14.5px;margin-top:4px;min-height:42px}
+.add:active{background:var(--panel2)}
+
+.verdict{display:flex;gap:10px;align-items:baseline;padding:11px 15px;border-top:1px solid var(--line);
+ font-size:14.5px;background:#0c1218;flex-wrap:wrap}
+.verdict .main{flex:1 1 auto;min-width:0}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.verdict.ok .dot{background:var(--ok)} .verdict.ok b{color:var(--ok)}
+.verdict.warn .dot{background:var(--amber)} .verdict.warn b{color:var(--amber)}
+.verdict.bad .dot{background:var(--red)} .verdict.bad b{color:var(--red)}
+.verdict .why{color:var(--muted);font-family:var(--mono);font-size:11px;margin-left:auto;text-align:right;
+ flex:0 1 auto}
+@media (max-width:520px){
+  .verdict{flex-direction:column;align-items:flex-start;gap:4px}
+  .verdict .why{margin-left:0;text-align:left}
+  .verdict .dot{position:absolute;margin-top:7px}
+  .verdict .main,.verdict .why{padding-left:17px}
+}
+.verdict{position:relative}
+
+.rest{display:flex;align-items:center;gap:11px;margin:0 0 12px;padding:11px 15px;border-radius:11px;
+ background:var(--panel);border:1px dashed var(--line2);font-size:14px}
+.rest .ic{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em}
+.rest b{font-family:var(--mono)}
+.rest.ok b{color:var(--ok)} .rest.bad b{color:var(--red)}
+
+.tot{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:16px 0}
+.tot div{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center}
+.tot b{display:block;font-family:var(--cond);font-size:22px}
+.tot span{color:var(--muted);font-size:11.5px}
+.btn{background:var(--accent);color:#0b1017;font-family:var(--cond);font-weight:700;font-size:16px;
+ padding:13px;border-radius:10px;width:100%;min-height:48px;margin-top:4px}
+
+.key{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:13px}
+.key div{background:#0c1218;border:1px solid var(--line);border-radius:9px;padding:9px 8px;text-align:center}
+.key span{display:block;color:var(--muted);font-size:10px;letter-spacing:.05em;text-transform:uppercase}
+.key b{display:block;font-family:var(--cond);font-size:21px;margin:2px 0 1px}
+.key i{display:block;font-style:normal;color:var(--muted);font-size:9.5px;line-height:1.3}
+.key div.neg b{color:var(--red)}
+.day.ok{border-color:rgba(75,221,151,.45)} .day.ok .dayhead{border-bottom-color:rgba(75,221,151,.25)}
+.day.warn{border-color:rgba(255,181,69,.45)}
+.day.bad{border-color:rgba(255,107,92,.5)}
+.flags{display:grid;gap:5px;margin:2px 0 11px}
+.fl{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.4;
+ padding:9px 11px;border-radius:8px;background:#0c1218;border:1px solid var(--line)}
+.fl .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;margin-top:5px}
+.fl.ok{border-color:rgba(75,221,151,.35)} .fl.ok .dot{background:var(--ok)} .fl.ok{color:#a9ebc9}
+.fl.amber{border-color:rgba(255,181,69,.35)} .fl.amber .dot{background:var(--amber)} .fl.amber{color:#ffd79a}
+.fl.red{border-color:rgba(255,107,92,.4)} .fl.red .dot{background:var(--red)} .fl.red{color:#ffb3ab}
+.cite{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap}
+.ladder{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}
+.ext{font-size:12px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+ padding:6px 9px;color:var(--ink2)}
+.ext b{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
+.ext i{font-style:normal;font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-left:4px}
+.crp{display:flex;align-items:baseline;gap:9px;background:#0c1218;border:1px solid var(--line);
+ border-radius:8px;padding:9px 11px;margin-bottom:7px;font-size:13.5px;flex-wrap:wrap}
+.crp .ic{font-family:var(--mono);font-size:9.5px;color:var(--muted);letter-spacing:.06em}
+.crp b{font-family:var(--mono);font-size:15px;color:var(--ok)}
+.crp i{font-style:normal;color:var(--muted);font-size:12px;flex:1 1 200px}
+.cum{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:11px;padding-left:2px}
+.cum.bad{color:var(--red)}
+.opts2{display:flex;flex-direction:column;gap:7px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+.opts2 label{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink2)}
+.opts2 input[type=checkbox]{width:19px;height:19px;accent-color:var(--accent);flex:0 0 auto}
+.opts2 .gap{gap:7px}
+.opts2 select{background:var(--panel2);border:1px solid var(--line2);border-radius:6px;padding:5px 8px;
+ font-family:var(--mono);font-size:12.5px}
+.rest .cite{margin-left:5px}
+.tot div.ok b{color:var(--ok)} .tot div.warn b{color:var(--amber)} .tot div.bad b{color:var(--red)}
+@media (max-width:560px){ .key{grid-template-columns:repeat(2,1fr)} }
+
+.foot{color:var(--muted);font-size:12.5px;margin-top:26px;padding-top:14px;border-top:1px solid var(--line);line-height:1.6}
+@media (max-width:560px){
+  .row,.rowhead{grid-template-columns:1fr 1fr 72px 72px 26px;gap:5px}
+  .rowhead{font-size:9px}
+  .tot{grid-template-columns:repeat(2,1fr)}
+  #map{height:220px}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Crew Duty Planner</h1>
+<p class="sub">2 Gp Ops Manual Part A, 7.1.8 — C-17, pilot crew-in</p></div></header>
+
+<div class="wrap">
+  <noscript><div class="warn"><b>JAVASCRIPT IS OFF</b>
+    This planner needs JavaScript. If you have opened the file from a preview window, open it in
+    Safari or Chrome instead.</div></noscript>
+  <div class="warn"><b>PLANNING AID — CHECK AGAINST THE ORDER</b>
+    Limits come from 2 Gp Ops Manual Part A, 7.1.8 (C-17 row). Station coordinates are approximate and
+    for plotting only. Every figure cites its paragraph so you can check it — this does not replace the order.</div>
+
+  <div id="mapwrap">
+    <div id="tiles"></div>
+    <svg id="map" viewBox="0 0 900 380" preserveAspectRatio="none"></svg>
+    <button id="maptoggle" title="Toggle map imagery" aria-pressed="true">PLOT</button>
+    <span id="mapnote">loading imagery…</span>
+    <a id="mapattr" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors &copy; CARTO</a>
+  </div>
+  <div class="tot" id="tot"></div>
+  <div id="trip"></div>
+  <div id="days"></div>
+  <button class="btn" id="addday">+ Add another day</button>
+
+  <p class="foot">Crew duty day and CRP from 2 Gp Ops Manual Part A 7.1.8, C-17 row: 16:00 reporting
+  0500–1459 local with 1–4 sectors, 14:00 with 5 or more; 14:00 and 12:00 respectively reporting
+  1500–0459. Minimum CRP 12:00, plus an hour per 4-hour zone change and an hour for each hour CDT
+  exceeds the limit. CDT runs from report to 30 minutes after last chocks-in (7.1.8.4). Crew in is
+  2:00 before ETD, 2:30 for USA or Theatre (7.1.8.1 fn4), or 5:00 where the ALM is operating
+  (7.1.8.4). Extensions 7.1.8.5, split duty 7.1.8.8.<br><br>
+  Not covered here, and still yours to apply: positioning and deadheading (7.1.8.9, 7.1.8.13),
+  delayed departures (7.1.8.15.2), acclimatisation history (7.1.8.2), enduring operations
+  (7.1.8.3.1) and the napping guidance (7.1.8.14).</p>
+</div>
+
+<script src="stations.js"></script>
+<script>
+/* ============================================================
+   Crew duty rules — 2 Gp Ops Manual Part A, 7.1.8 (C-17 row).
+   Every number below is traceable to a paragraph and is cited in the UI.
+   ============================================================ */
+const R = {
+  /* 7.1.8.1 Normal peacetime CDT and CRP by type — C-17 */
+  cdt: { normal:{ day:{few:16, many:14}, night:{few:14, many:12} },
+         standby:{ day:{few:14, many:12}, night:{few:12, many:10} } },
+  minCRP: 12,                 /* 7.1.8.1 Min CRP column, C-17 */
+  debrief: 30,                /* 7.1.8.4 CDT finishes 30 min after last chocks-in */
+  crewIn: { 120:'Standard — 2:00 before ETD',
+            150:'USA or Theatre — 2:30 before ETD',
+            300:'ALM operating — 5:00 before ETD' },   /* 7.1.8.1 fn4, fn5 / 7.1.8.4 */
+  splitMax: 18*60,            /* 7.1.8.8 split duty ceiling */
+  splitDeduct: 90,            /* 7.1.8.8 each ground period less 1:30, then halved */
+  ext: [ {h:1,  who:'AS cdr',  ref:'7.1.8.5.1'},
+         {h:2,  who:'Sqn cdr', ref:'7.1.8.5.2'},
+         {h:3,  who:'DDH',     ref:'7.1.8.5.3'} ],      /* beyond 3 hrs = ODH, 7.1.8.5.4 */
+  fn3Reduce: 2*60,            /* 7.1.8.1 fn3 — CRP >18 but <30 hrs reduces next CDT by 2 */
+  cdt24: 24*60, crp24: 30*60, /* 7.1.8.3.2 */
+  cum72: 40*60, cumWin: 72*60, freeDay: 30*60,   /* 7.1.8.3.3 */
+  sixDay: 144*60,             /* 7.1.8.3.6 */
+  deadhead: 31*60,            /* 7.1.8.13 */
+  nearHomeCRP: 10*60, nearHomeCDT: 12*60          /* 7.1.8.3.5 */
+};
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+const hm=m=>{const s=m<0?'-':'';m=Math.abs(Math.round(m));return s+pad(Math.floor(m/60))+':'+pad(m%60);};
+const parseHM=s=>{const m=/^(\d{1,2}):?(\d{2})$/.exec((s||'').trim());if(!m)return null;
+  const h=+m[1],mi=+m[2];return (h<24&&mi<60)?h*60+mi:null;};
+const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const zz=m=>hm(((m%1440)+1440)%1440)+'Z';
+function gc(a,b){const R=3440.065,r=Math.PI/180,p1=a.la*r,p2=b.la*r,dp=(b.la-a.la)*r,dl=(b.lo-a.lo)*r;
+  const x=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+function gcPath(a,b,n=64){const r=Math.PI/180,p1=a.la*r,l1=a.lo*r,p2=b.la*r,l2=b.lo*r;
+  const d=2*Math.asin(Math.sqrt(Math.sin((p2-p1)/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin((l2-l1)/2)**2));
+  if(!d)return[[a.la,a.lo],[b.la,b.lo]];const out=[];
+  for(let i=0;i<=n;i++){const f=i/n,A=Math.sin((1-f)*d)/Math.sin(d),B=Math.sin(f*d)/Math.sin(d);
+    const x=A*Math.cos(p1)*Math.cos(l1)+B*Math.cos(p2)*Math.cos(l2);
+    const y=A*Math.cos(p1)*Math.sin(l1)+B*Math.cos(p2)*Math.sin(l2);
+    const z=A*Math.sin(p1)+B*Math.sin(p2);
+    out.push([Math.atan2(z,Math.sqrt(x*x+y*y))/r,Math.atan2(y,x)/r]);}
+  return out;}
+
+/* ---------- state ---------- */
+let DAYS=[
+ {rpt:120, gap:1, standby:false, nearHome:false,
+  sectors:[{from:'EGVN',to:'LCRA',off:'0800',on:'1230'},
+           {from:'LCRA',to:'OTBH',off:'1400',on:'1745'}]},
+ {rpt:120, gap:1, standby:false, nearHome:false,
+  sectors:[{from:'OTBH',to:'OAKN',off:'0600',on:'0830'},
+           {from:'OAKN',to:'OTBH',off:'1000',on:'1230'},
+           {from:'OTBH',to:'LCRA',off:'1400',on:'1740'}]},
+ {rpt:150, gap:1, standby:false, nearHome:false,
+  sectors:[{from:'LCRA',to:'EGVN',off:'0930',on:'1415'}]},
+];
+
+/* ---------- the rules engine ---------- */
+function computeDay(d, prev, absDayStart){
+  const rpt = d.rpt ?? 120;
+  const secs = d.sectors.map(s=>{
+    const off=parseHM(s.off), on=parseHM(s.on);
+    const A=STATIONS[(s.from||'').toUpperCase()], B=STATIONS[(s.to||'').toUpperCase()];
+    return {...s, off, on, A, B,
+            dur:(off!==null&&on!==null)?((on-off+1440)%1440):null,
+            nm:(A&&B)?gc(A,B):null};
+  });
+  const valid = secs.filter(s=>s.off!==null && s.on!==null && s.dur!==null);
+  if(!valid.length) return {secs, bad:true};
+
+  const first=valid[0], last=valid[valid.length-1];
+  const report=(first.off - rpt + 1440)%1440;            /* 7.1.8.4 */
+
+  /* flat timeline from report, so a duty crossing midnight still adds up */
+  const flat=[{t:'pre',a:0,b:rpt}];
+  let cur=rpt, grounds=[];
+  valid.forEach((s,i)=>{
+    if(i>0){ const g=(s.off - valid[i-1].on + 1440)%1440;
+      grounds.push(g); flat.push({t:'gnd',a:cur,b:cur+g}); cur+=g; }
+    flat.push({t:'fly',a:cur,b:cur+s.dur,label:s.from+'–'+s.to,night:isNight(s)});
+    cur+=s.dur;
+  });
+  const toLastOn=cur;                                     /* report -> last chocks-in */
+  flat.push({t:'post',a:cur,b:cur+R.debrief});
+  const cdt = toLastOn + R.debrief;                       /* actual CDT, 7.1.8.4 */
+
+  /* --- CDT limit: band is set by LOCAL report time at the first departure --- */
+  const depTz = first.A ? first.A.tz : 0;
+  const localReport = (((report + depTz*60) % 1440) + 1440) % 1440;
+  const lh = localReport/60;
+  const n = valid.length, few = n<=4;
+  let band, limit;
+  if(d.standby){ band = (lh>=8 && lh<15) ? 'day' : 'night';
+                 limit = R.cdt.standby[band][few?'few':'many']*60; }
+  else         { band = (lh>=5 && lh<15) ? 'day' : 'night';
+                 limit = R.cdt.normal [band][few?'few':'many']*60; }
+  const baseLimit = limit;
+
+  /* fn3 — a previous CRP over 18 but under 30 hrs costs 2 hrs off this CDT */
+  let fn3=false;
+  if(prev && prev.rest!==null && prev.rest>18*60 && prev.rest<30*60){ limit-=R.fn3Reduce; fn3=true; }
+
+  /* 7.1.8.8 split duty — ground periods below the normal minimum buy CDT back */
+  let split=0;
+  grounds.forEach(g=>{ if(g < R.minCRP*60) split += Math.max(0,(g-R.splitDeduct)/2); });
+  const splitLimit = Math.min(limit+split, R.splitMax);
+  const splitGain  = Math.max(0, splitLimit-limit);
+
+  /* what he asked for: latest chocks-in = report + limit - 30 */
+  const latestOn      = report + limit - R.debrief;
+  const dutyEndPlan   = report + limit;
+  const dutyEndActual = report + cdt;
+
+  /* --- CRP required after this duty (7.1.8.2 / 7.1.8.3) --- */
+  const arrTz   = last.B ? last.B.tz : depTz;
+  const tzShift = Math.abs(arrTz - depTz);
+  const tzHrs   = Math.floor(tzShift/4);                  /* +1 hr per 4-hr zone change */
+  const overHrs = Math.max(0, Math.ceil((cdt - limit)/60));
+  let crpReq = R.minCRP*60 + tzHrs*60 + overHrs*60;
+  const crpNotes=[];
+  if(tzHrs)   crpNotes.push(`+${tzHrs}:00 for ${tzShift}h zone change`);
+  if(overHrs) crpNotes.push(`+${overHrs}:00 for CDT over limit`);
+  let crp0600=false;
+  if(cdt > R.cdt24){ crpReq=Math.max(crpReq,R.crp24); crp0600=true;
+                     crpNotes.push('CDT over 24:00 — 30:00 free of primary duties, next duty not before 0600L'); }
+  if(d.nearHome && cdt<=R.nearHomeCDT && !overHrs && !tzHrs){
+    crpReq=R.nearHomeCRP; crpNotes.length=0;
+    crpNotes.push('acclimatised, at or within 30 min of accommodation — 10:00 applies if the next CDT is also 12:00 or less'); }
+
+  /* --- flags --- */
+  const flags=[];
+  const over = cdt > limit;
+  if(over){
+    const by = cdt-limit;
+    const who = R.ext.find(x=>by<=x.h*60);
+    flags.push({lvl:'red', t:`CDT ${hm(cdt)} exceeds the ${hm(limit)} limit by ${hm(by)}`,
+      ref: who ? `needs ${/^[AEIOU]/.test(who.who)?'an':'a'} ${who.who} extension (${who.ref})` : 'over 3:00 — ODH only (7.1.8.5.4)'});
+  }
+  if(cdt > R.splitMax) flags.push({lvl:'red', t:`CDT ${hm(cdt)} is beyond the 18:00 split-duty ceiling`, ref:'7.1.8.8'});
+  if(fn3) flags.push({lvl:'amber', t:`CDT cut to ${hm(limit)} — previous CRP was between 18:00 and 30:00`, ref:'7.1.8.1 fn3'});
+  if(!over && limit-cdt <= 60) flags.push({lvl:'amber', t:`Only ${hm(limit-cdt)} of margin left`, ref:'7.1.8.1'});
+  if(n>=5) flags.push({lvl:'amber', t:`${n} sectors — the 5-or-more column applies`, ref:'7.1.8.1'});
+  if(splitGain>0 && over) flags.push({lvl:'amber',
+    t:`Split duty could add ${hm(splitGain)} if rest facilities are adequate`, ref:'7.1.8.8'});
+
+  return {secs, valid, flat, report, localReport, depTz, arrTz, band, n, few,
+          cdt, limit, baseLimit, fn3, split, splitGain, splitLimit,
+          latestOn, dutyEndPlan, dutyEndActual, toLastOn, rpt,
+          crpReq, crpNotes, crp0600, over, flags, grounds,
+          nm: valid.reduce((x,s)=>x+(s.nm||0),0),
+          air: valid.reduce((x,s)=>x+(s.dur||0),0),
+          absStart: absDayStart, absEnd: absDayStart+cdt};
+}
+function isNight(s){ if(!s.A||s.off===null) return false;
+  const lt=((s.off+s.A.tz*60)%1440+1440)%1440, h=lt/60;
+  return h>=22 || h<6; }
+
+/* ---------- render ---------- */
+function render(){
+  let html='', prev=null, totNm=0, totAir=0, abs=0;
+  const computed=[];
+  DAYS.forEach((d,i)=>{
+    if(i>0){ abs += (d.gap ?? 1)*1440; }
+    const dayStart = i===0 ? 0 : abs;
+    const c=computeDay(d, prev, dayStart);
+    computed.push(c);
+    if(!c.bad){
+      /* absolute position of this report on a continuous clock */
+      c.absStart = (i===0) ? c.report : (abs + c.report);
+      c.absEnd   = c.absStart + c.cdt;
+    }
+    prev = c.bad ? prev : {rest:null, end:c.dutyEndActual, cdt:c.cdt, absEnd:c.absEnd};
+    if(i>0 && !c.bad && computed[i-1] && !computed[i-1].bad){
+      c.rest = c.absStart - computed[i-1].absEnd;
+      c.restReq = computed[i-1].crpReq;
+      c.restOk = c.rest >= c.restReq;
+      prev.rest = c.rest;
+    }
+  });
+  /* second pass so fn3 sees the rest that precedes it */
+  let abs2=0, prev2=null; const fin=[];
+  DAYS.forEach((d,i)=>{
+    if(i>0) abs2 += (d.gap ?? 1)*1440;
+    const c=computeDay(d, prev2, i===0?0:abs2);
+    if(!c.bad){ c.absStart=(i===0)?c.report:(abs2+c.report); c.absEnd=c.absStart+c.cdt; }
+    if(i>0 && !c.bad && fin[i-1] && !fin[i-1].bad){
+      c.rest=c.absStart-fin[i-1].absEnd; c.restReq=fin[i-1].crpReq; c.restOk=c.rest>=c.restReq;
+    }
+    fin.push(c);
+    prev2 = c.bad ? prev2 : {rest:c.rest ?? null, end:c.dutyEndActual, cdt:c.cdt, absEnd:c.absEnd};
+  });
+
+  /* cumulative checks across the trip */
+  const cum=[];
+  fin.forEach((c,i)=>{
+    if(c.bad){cum.push(null);return;}
+    let sum=0;
+    for(let j=i;j>=0;j--){ const p=fin[j]; if(p.bad) continue;
+      if(c.absEnd - p.absStart <= R.cumWin) sum+=p.cdt; else break; }
+    cum.push(sum);
+  });
+  const tripSpan = fin.length && !fin[fin.length-1].bad && !fin[0].bad
+    ? fin[fin.length-1].absEnd - fin[0].absStart : 0;
+
+  fin.forEach((c,i)=>{
+    const d=DAYS[i];
+    if(!c.bad){ totNm+=c.nm; totAir+=c.air; }
+    if(i>0 && c.rest!==undefined && c.rest!==null){
+      const extra = c.restOk ? '' : ` — short by ${hm(c.restReq-c.rest)}`;
+      html+=`<div class="rest ${c.restOk?'ok':'bad'}"><span class="ic">CRP</span>
+        <span><b>${hm(c.rest)}</b> between duties &middot; minimum ${hm(c.restReq)}${extra}</span></div>`;
+    }
+    html+=dayCard(i,d,c,cum[i]);
+  });
+
+  $('#days').innerHTML=html;
+
+  const restShort=fin.filter(c=>!c.bad&&c.restOk===false).length;
+  const dayBad=fin.filter(c=>!c.bad&&c.flags.some(f=>f.lvl==='red')).length;
+  const bad=dayBad+restShort;
+  const warn=fin.filter(c=>!c.bad&&!c.flags.some(f=>f.lvl==='red')&&c.flags.length).length;
+  const over40=cum.some(v=>v!==null&&v>R.cum72);
+  const over6=tripSpan>R.sixDay;
+  let trip='';
+  if(over40) trip+=`<div class="rest bad"><span class="ic">72 HRS</span><span>More than
+    <b>40:00</b> CDT in a rolling 72 hours — minimum CRP becomes a free day of 30:00, next duty not before 0600L
+    <span class="cite">7.1.8.3.3</span></span></div>`;
+  if(over6) trip+=`<div class="rest bad"><span class="ic">6 DAYS</span><span>Task runs beyond
+    <b>144 hrs</b> — a single crew needs 30:00 after every 6 days <span class="cite">7.1.8.3.6</span></span></div>`;
+  $('#trip').innerHTML=trip;
+
+  $('#tot').innerHTML=`
+    <div class="${bad?'bad':warn?'warn':'ok'}"><b>${bad?bad:warn?warn:'OK'}</b>
+      <span>${bad
+        ? [dayBad?'duty':'' , restShort?'CRP':''].filter(Boolean).join(' and ')+' breach'+(bad>1?'es':'')
+        : warn?'day'+(warn>1?'s':'')+' to watch':'all within limits'}</span></div>
+    <div><b>${DAYS.reduce((n,x)=>n+x.sectors.length,0)}</b><span>sectors</span></div>
+    <div><b>${Math.round(totNm).toLocaleString()}</b><span>nautical miles</span></div>
+    <div><b>${hm(totAir)}</b><span>airborne</span></div>`;
+  drawMap();
+}
+
+function dayCard(i,d,c,cum){
+  const rptSel=`<span class="seg2" role="group" aria-label="Crew in">
+      ${[120,150,300].map(v=>`<button data-rpt="${i}.${v}" aria-pressed="${(d.rpt??120)===v}">${hm(v)}</button>`).join('')}
+    </span>`;
+  const head=`<div class="dayhead"><h2>Day ${i+1}</h2>${rptSel}
+    ${DAYS.length>1?`<button class="del" data-rmday="${i}">Remove</button>`:''}</div>`;
+
+  const rows=d.sectors.map((s,j)=>{
+    const S=c.secs[j]||{};
+    const leg=(S.dur!==null&&S.dur!==undefined)
+      ? `<div class="leg"><span>${S.nm?Math.round(S.nm)+' nm':''}</span>
+         <span>${hm(S.dur)} airborne${isNight(S)?' <span class="n">&middot; night</span>':''}</span></div>`:'';
+    return `<div class="row">
+      <input data-d="${i}" data-s="${j}" data-f="from" value="${esc(s.from)}" placeholder="ICAO" maxlength="4">
+      <input data-d="${i}" data-s="${j}" data-f="to"   value="${esc(s.to)}"   placeholder="ICAO" maxlength="4">
+      <input data-d="${i}" data-s="${j}" data-f="off"  value="${esc(s.off)}"  placeholder="hhmm" inputmode="numeric">
+      <input data-d="${i}" data-s="${j}" data-f="on"   value="${esc(s.on)}"   placeholder="hhmm" inputmode="numeric">
+      <button class="x" data-rm="${i}.${j}" aria-label="Remove sector">&times;</button></div>${leg}`;
+  }).join('');
+  const opts=`<div class="opts2">
+    <label><input type="checkbox" data-sb="${i}" ${d.standby?'checked':''}> Standby, 12 hrs or less to departure</label>
+    <label><input type="checkbox" data-nh="${i}" ${d.nearHome?'checked':''}> Acclimatised, at or near accommodation</label>
+    ${i>0?`<label class="gap">Days after previous
+      <select data-gap="${i}">${[1,2,3].map(g=>`<option value="${g}" ${(d.gap??1)===g?'selected':''}>+${g}</option>`).join('')}</select></label>`:''}
+  </div>`;
+  const table=`<div class="rowhead"><span>FROM</span><span>TO</span><span>TAKE OFF<em>(UTC)</em></span><span>LANDING<em>(UTC)</em></span><span></span></div>
+    ${rows}<button class="add" data-add="${i}">+ Add sector</button>${opts}`;
+
+  if(c.bad) return `<div class="day">${head}<div class="pad">
+    <p class="hint">Enter a departure, destination and both times to work out the duty.</p>${table}</div></div>`;
+
+  const red=c.flags.some(f=>f.lvl==='red');
+  const cls=red?'bad':(c.flags.length?'warn':'ok');
+  const span=Math.max(c.cdt,c.limit)*1.05;
+  const strip=c.flat.map(f=>{
+    const w=(f.b-f.a)/span*100, l=f.a/span*100;
+    const lab=f.t==='fly'?f.label:(f.t==='pre'?'rpt':f.t==='post'?'dbf':'');
+    return `<div class="seg ${f.t}${f.night?' night':''}" style="left:${l}%;width:${w}%">${w>9?esc(lab):''}</div>`;
+  }).join('')+`<div class="lim" style="left:${c.limit/span*100}%"></div>`;
+
+  /* the four numbers he asked for */
+  const key=`<div class="key">
+    <div><span>Duty day</span><b>${hm(c.limit)}</b><i>${c.band==='day'?'0500–1459':'1500–0459'} local, ${c.few?'1–4':'5+'} sectors${c.fn3?' · less 2:00':''}</i></div>
+    <div><span>Duty ends</span><b>${zz(c.dutyEndPlan)}</b><i>report ${zz(c.report)} + ${hm(c.limit)}</i></div>
+    <div><span>Last landing</span><b>${zz(c.latestOn)}</b><i>duty end less 0:30</i></div>
+    <div class="${c.over?'neg':''}"><span>Flex left</span><b>${hm(c.limit-c.cdt)}</b><i>${c.over?'over limit':'to the limit'}</i></div>
+  </div>`;
+
+  const ladder=R.ext.map(x=>{
+    const when=c.report+c.limit+x.h*60-R.debrief;
+    return `<span class="ext"><b>+${x.h}:00</b> ${x.who} &rarr; ${zz(when)} <i>${x.ref}</i></span>`;
+  }).join('')+(c.splitGain>0?`<span class="ext"><b>+${hm(c.splitGain)}</b> split duty &rarr; ${zz(c.report+c.splitLimit-R.debrief)} <i>7.1.8.8</i></span>`:'');
+
+  const flags=c.flags.length
+    ? `<div class="flags">${c.flags.map(f=>`<div class="fl ${f.lvl}"><span class="dot"></span>
+        <span>${esc(f.t)} <span class="cite">${esc(f.ref)}</span></span></div>`).join('')}</div>`
+    : `<div class="flags"><div class="fl ok"><span class="dot"></span>
+        <span>Within limits — ${hm(c.limit-c.cdt)} of duty remaining <span class="cite">7.1.8.1</span></span></div></div>`;
+
+  const crp=`<div class="crp"><span class="ic">CRP AFTER</span>
+    <b>${hm(c.crpReq)}</b>${c.crpNotes.length?`<i>${esc(c.crpNotes.join(' · '))}</i>`:`<i>minimum for type</i>`}</div>`;
+
+  const cumLine = (cum!==null && cum!==undefined)
+    ? `<div class="cum ${cum>R.cum72?'bad':''}">${hm(cum)} CDT in the preceding 72 hrs${cum>R.cum72?' — over 40:00':''}</div>`:'';
+
+  return `<div class="day ${cls}">${head}<div class="pad">
+    ${key}
+    <div class="strip">${strip}</div>
+    <div class="bars"><span>report ${zz(c.report)} &middot; ${hm(c.rpt)} before off &middot; ${zz(c.localReport)==''?'':hm(c.localReport)+'L'}</span>
+      <span>actual CDT ${hm(c.cdt)}</span></div>
+    ${flags}
+    <div class="ladder">${ladder}</div>
+    ${crp}${cumLine}
+    ${table}
+  </div></div>`;
+}
+
+/* ---------- map ----------
+   Web-Mercator tile layer written from scratch (no library, so it is testable here),
+   with the great circles drawn over it in SVG. If tiles cannot load — no signal, or
+   blocked — they simply never appear and the graticule plot underneath still works. */
+const MAPW=900, MAPH=380, PADX=46, PADY=34, TILE=256;
+const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+const TILE_SUBS = ['a','b','c'];
+let showTiles = true;
+let tileTried = 0, tileOk = 0, tileFail = 0, tileToken = 0;
+
+const merX = lo => (lo+180)/360;
+const merY = la => { const r=Math.max(-85.05,Math.min(85.05,la))*Math.PI/180;
+                     return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2; };
+const merLat = y => { const n=Math.PI*(1-2*y); return Math.atan(Math.sinh(n))*180/Math.PI; };
+
+function drawMap(){
+  const svg=$('#map'), tilesEl=$('#tiles'), wrap=$('#mapwrap');
+  const legs=[]; let firstIcao=null;
+  DAYS.forEach(d=>d.sectors.forEach(s=>{
+    const A=STATIONS[(s.from||'').toUpperCase()], B=STATIONS[(s.to||'').toUpperCase()];
+    if(!A||!B) return;
+    if(!firstIcao) firstIcao=(s.from||'').toUpperCase();
+    legs.push({A,B,from:(s.from||'').toUpperCase(),to:(s.to||'').toUpperCase(),
+               night:isNight({off:parseHM(s.off),A},A)});
+  }));
+  if(!legs.length){
+    tilesEl.innerHTML=''; wrap.classList.remove('hasimg');
+    svg.innerHTML=`<text x="450" y="195" text-anchor="middle" class="lbl" fill="#6b7f93">Enter two ICAO codes to plot the route</text>`;
+    return;
+  }
+  const paths=legs.map(l=>({...l, pts:unwrap(gcPath(l.A,l.B,72))}));
+
+  /* world-normalised extent (0..1 mercator units, longitude may run outside 0..1) */
+  let xs=[], ys=[];
+  paths.forEach(p=>p.pts.forEach(([la,lo])=>{ xs.push(merX(lo)); ys.push(merY(la)); }));
+  let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const padX=Math.max((x1-x0)*0.16, 0.014), padY=Math.max((y1-y0)*0.34, 0.020);
+  x0-=padX; x1+=padX; y0-=padY; y1+=padY;
+  const innerW=MAPW-2*PADX, innerH=MAPH-2*PADY, wantAR=innerW/innerH;
+  let sx=x1-x0, sy=y1-y0;
+  if(sx/sy < wantAR){ const need=sy*wantAR, a=(need-sx)/2; x0-=a; x1+=a; }
+  else { const need=sx/wantAR, a=(need-sy)/2; y0-=a; y1+=a; }
+  sx=x1-x0; sy=y1-y0;
+
+  const PX = x => PADX + (x-x0)/sx*innerW;
+  const PY = y => PADY + (y-y0)/sy*innerH;
+  const X  = lo => PX(merX(lo));
+  const Y  = la => PY(merY(la));
+
+  /* ---- tiles ---- */
+  tilesEl.innerHTML='';
+  wrap.classList.remove('hasimg');
+  const myToken = ++tileToken;
+  tileTried = tileOk = tileFail = 0;
+  setStatus();
+  if(showTiles){
+    const scale = innerW/sx;                       // world pixels across
+    let z = Math.round(Math.log2(scale/TILE));
+    z = Math.max(1, Math.min(8, z));
+    const n = Math.pow(2,z), worldPx = n*TILE;
+    const k = scale/worldPx;                       // tile px -> screen px
+    const sizeCss = (TILE*k)/MAPW*100;             // as % of the 900-wide viewBox
+    const tx0=Math.floor(x0*n), tx1=Math.ceil(x1*n);
+    const ty0=Math.max(0,Math.floor(y0*n)), ty1=Math.min(n,Math.ceil(y1*n));
+    let count=0;
+    for(let tx=tx0; tx<tx1 && count<160; tx++){
+      for(let ty=ty0; ty<ty1 && count<160; ty++){
+        const wrapped=((tx%n)+n)%n;
+        const leftPx = PX(tx/n), topPx = PY(ty/n);
+        const img=document.createElement('img');
+        img.loading='lazy'; img.decoding='async'; img.alt='';
+        img.style.left = (leftPx/MAPW*100)+'%';
+        img.style.top  = (topPx/MAPH*100)+'%';
+        img.style.width  = sizeCss+'%';
+        img.style.height = ((TILE*k)/MAPH*100)+'%';
+        tileTried++;
+        img.onerror=()=>{ img.remove(); if(myToken===tileToken){ tileFail++; setStatus(); } };
+        img.onload =()=>{ if(myToken===tileToken){ tileOk++; wrap.classList.add('hasimg'); setStatus(); } };
+        img.src=TILE_URL.replace('{s}',TILE_SUBS[(tx+ty)%3]).replace('{z}',z)
+                        .replace('{x}',wrapped).replace('{y}',ty);
+        tilesEl.appendChild(img); count++;
+      }
+    }
+  }
+
+  /* ---- graticule, routes and pins ---- */
+  let g='';
+  const spanLo=(x1-x0)*360, spanLa=Math.abs(merLat(y0)-merLat(y1));
+  const stepLo=niceStep(spanLo), stepLa=niceStep(spanLa);
+  const lo0=(x0*360)-180, lo1=(x1*360)-180;
+  for(let lo=Math.ceil(lo0/stepLo)*stepLo; lo<=lo1; lo+=stepLo){
+    const x=X(lo);
+    g+=`<line class="grid${lo%90===0?' major':''}" x1="${x.toFixed(1)}" y1="${PADY}" x2="${x.toFixed(1)}" y2="${MAPH-PADY}"/>`;
+    g+=`<text class="sub" x="${x.toFixed(1)}" y="${MAPH-PADY+14}" text-anchor="middle">${fmtLon(lo)}</text>`;
+  }
+  const laTop=merLat(y0), laBot=merLat(y1);
+  for(let la=Math.ceil(laBot/stepLa)*stepLa; la<=laTop; la+=stepLa){
+    const y=Y(la); if(y<PADY-1||y>MAPH-PADY+1) continue;
+    g+=`<line class="grid${la===0?' major':''}" x1="${PADX}" y1="${y.toFixed(1)}" x2="${MAPW-PADX}" y2="${y.toFixed(1)}"/>`;
+    g+=`<text class="sub" x="${PADX-7}" y="${(y+3).toFixed(1)}" text-anchor="end">${fmtLat(la)}</text>`;
+  }
+  paths.forEach(p=>{
+    const d=p.pts.map(([la,lo],i)=>(i?'L':'M')+X(lo).toFixed(1)+' '+Y(la).toFixed(1)).join(' ');
+    g+=`<path class="gcl halo" d="${d}"/><path class="gcl${p.night?' night':''}" d="${d}"/>`;
+  });
+  const lonFor={}, seen=new Map();
+  paths.forEach(p=>{ seen.set(p.from,p.A); seen.set(p.to,p.B);
+    lonFor[p.from]=lonFor[p.from] ?? p.pts[0][1]; lonFor[p.to]=p.pts[p.pts.length-1][1]; });
+  seen.forEach((S,code)=>{
+    const x=X(lonFor[code] ?? S.lo), y=Y(S.la);
+    g+=`<circle class="pin${code===firstIcao?' start':''}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5"/>`;
+    const flip = x > MAPW-150;
+    const ax=(x+(flip?-9:9)).toFixed(1), an=flip?'end':'start';
+    g+=`<text class="lbl" x="${ax}" y="${(y-9).toFixed(1)}" text-anchor="${an}">${esc(code)}</text>`;
+    g+=`<text class="sub" x="${ax}" y="${(y+3).toFixed(1)}" text-anchor="${an}">UTC${S.tz>=0?'+':''}${S.tz}</text>`;
+  });
+  svg.innerHTML=g;
+}
+function setStatus(){
+  const btn=$('#maptoggle'), note=$('#mapnote');
+  if(!btn||!note) return;
+  if(!showTiles){
+    btn.textContent='MAP'; btn.setAttribute('aria-pressed','false');
+    note.textContent='plot view'; note.className='on'; return;
+  }
+  btn.setAttribute('aria-pressed','true');
+  if(tileOk>0){ btn.textContent='PLOT'; note.textContent='map imagery'; note.className='on'; return; }
+  if(tileTried>0 && tileFail>=tileTried){
+    btn.textContent='PLOT'; note.textContent='no imagery here — plot only'; note.className='off'; return;
+  }
+  btn.textContent='PLOT'; note.textContent='loading imagery…'; note.className='on';
+}
+function unwrap(pts){
+  const out=[]; let off=0;
+  pts.forEach(([la,lo],i)=>{
+    if(i){ const prev=out[i-1][1]; const d=lo+off-prev;
+      if(d>180) off-=360; else if(d<-180) off+=360; }
+    out.push([la, lo+off]);
+  });
+  return out;
+}
+const niceStep=s=>{ for(const v of [1,2,5,10,15,20,30,45,60,90]) if(s/v<=8) return v; return 90; };
+const fmtLat=v=>Math.abs(Math.round(v))+(v<0?'S':v>0?'N':'');
+const fmtLon=v=>{ const x=((v+180)%360+360)%360-180; return Math.abs(Math.round(x))+(x<0?'W':x>0?'E':''); };
+
+/* ---------- events ---------- */
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.sb!==undefined){ DAYS[+t.dataset.sb].standby=t.checked; render(); return; }
+  if(t.dataset.nh!==undefined){ DAYS[+t.dataset.nh].nearHome=t.checked; render(); return; }
+  if(t.dataset.gap!==undefined){ DAYS[+t.dataset.gap].gap=+t.value; render(); return; }
+});
+document.addEventListener('input',e=>{
+  const t=e.target; if(t.dataset.d===undefined) return;
+  let v=t.value;
+  if(t.dataset.f==='from'||t.dataset.f==='to') v=v.toUpperCase().slice(0,4);
+  DAYS[+t.dataset.d].sectors[+t.dataset.s][t.dataset.f]=v;
+  const pos=t.selectionStart, id=`[data-d="${t.dataset.d}"][data-s="${t.dataset.s}"][data-f="${t.dataset.f}"]`;
+  render();
+  const n=document.querySelector(id); if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}
+});
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-add],[data-rm],[data-rmday],[data-rpt]'); if(!t) return;
+  if(t.dataset.rpt){ const [i,v]=t.dataset.rpt.split('.').map(Number); DAYS[i].rpt=v; render(); return; }
+  if(t.dataset.add!==undefined){
+    const d=DAYS[+t.dataset.add], last=d.sectors[d.sectors.length-1];
+    d.sectors.push({from:last?last.to:'',to:'',off:'',on:''});
+  }
+  if(t.dataset.rm){ const [i,j]=t.dataset.rm.split('.').map(Number);
+    DAYS[i].sectors.splice(j,1); }
+  if(t.dataset.rmday!==undefined) DAYS.splice(+t.dataset.rmday,1);
+  render();
+});
+document.getElementById('maptoggle').onclick=e=>{
+  showTiles=!showTiles;
+  drawMap();
+  setStatus();
+};
+document.getElementById('addday').onclick=()=>{
+  const lastDay=DAYS[DAYS.length-1], lastSec=lastDay&&lastDay.sectors[lastDay.sectors.length-1];
+  DAYS.push({rpt:120, gap:1, standby:false, nearHome:false,
+             sectors:[{from:lastSec?lastSec.to:'',to:'',off:'',on:''}]});
+  render();
+};
+render();
+
+/* offline support once the page has been opened over http(s).
+   On a first visit the tiles are requested before the worker takes control, so nothing
+   would be cached. Redraw once it is controlling, so those requests go through it. */
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', async () => {
+    try {
+      await navigator.serviceWorker.register('sw.js');
+      await navigator.serviceWorker.ready;
+      if (navigator.serviceWorker.controller) drawMap();
+    } catch (e) {}
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => drawMap());
+}
+</script>
+</body>
+</html>
